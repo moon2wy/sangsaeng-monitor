@@ -44,9 +44,17 @@
     <div class="section-heading"><h2 id="viewTitle">진행 중 공고</h2><button id="markAll" class="link-button" hidden>모두 읽음</button></div>
     <div class="categories" id="categories" aria-label="지원분야"></div>
     <div class="controls">
-      <label class="search"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="공고명, 기관명으로 검색" aria-label="공고명, 기관명으로 검색" enterkeyhint="search"></label>
-      <select id="status" aria-label="신청 상태"><option value="">모든 신청 상태</option><option>신청중</option><option>신청예정</option><option>신청완료</option></select>
-      <select id="sort" aria-label="정렬"><option value="deadline">마감 임박순</option><option value="registered">최근 등록순</option><option value="found">최근 발견순</option></select>
+      <label class="search"><span aria-hidden="true">⌕</span><input id="qTitle" type="search" placeholder="프로그램명을 입력하세요" aria-label="프로그램명" enterkeyhint="search"></label>
+      <button id="filterToggle" class="filter-toggle" aria-expanded="false" aria-controls="filters">필터<span id="filterCount"></span></button>
+    </div>
+    <div id="filters" class="filters">
+      <label class="field wide"><span>기업명</span><input id="qOrg" type="search" placeholder="기업명을 입력하세요" enterkeyhint="search"></label>
+      <div class="field wide"><span>지원기간</span><div class="period"><input id="from" type="date" aria-label="지원기간 시작일"><em>~</em><input id="to" type="date" aria-label="지원기간 종료일"></div></div>
+      <label class="field"><span>지원대상</span><select id="target"></select></label>
+      <label class="field"><span>신청단계</span><select id="status"></select></label>
+      <label class="field"><span>진행단계</span><select id="progress"></select></label>
+      <label class="field"><span>정렬</span><select id="sort"><option value="deadline">마감 임박순</option><option value="registered">최근 등록순</option><option value="found">최근 발견순</option></select></label>
+      <div class="filter-foot"><small>지원기간은 공고의 지원기간이 입력한 기간과 겹치면 표시합니다.</small><button id="resetFilters" class="link-button">필터 초기화</button></div>
     </div>
     <div class="result-info"><span id="resultCount">불러오는 중</span></div>
     <div id="cards" class="cards" aria-live="polite"></div>

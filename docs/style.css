@@ -49,6 +49,19 @@ input[type=search]{width:100%;border:0;background:transparent;padding:12px 0;min
 input[type=search]:focus{outline:none}
 .search:focus-within{border-color:var(--green)}
 select{border:1px solid var(--line);border-radius:8px;background:#fff;padding:10px 12px;color:#596a61;min-width:0}
+.filter-toggle{display:none;border:1px solid var(--line);background:#fff;border-radius:8px;padding:0 14px;color:#596a61;white-space:nowrap}
+.filter-toggle.on{border-color:var(--green);color:var(--green);font-weight:700}
+.filters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px 12px;margin-top:10px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.field>span{font-size:11px;color:var(--muted);font-weight:600}
+.field.wide{grid-column:span 2}
+.field select{width:100%}
+.field input[type=search],.field input[type=date]{border:1px solid var(--line);border-radius:8px;padding:9px 10px;background:#fff;font-size:14px;width:100%;min-width:0}
+.field input:focus,.field select:focus{outline:none;border-color:var(--green)}
+.period{display:flex;align-items:center;gap:6px}
+.period em{font-style:normal;color:var(--muted)}
+.filter-foot{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.filter-foot small{color:#8a978f;font-size:11px}
 .result-info{margin:16px 0 10px;font-size:12px;color:var(--muted)}
 
 .cards{display:grid;gap:12px}
@@ -107,9 +120,13 @@ footer ol{padding-left:20px}
   h2{font-size:18px}
   .categories{flex-wrap:nowrap;overflow-x:auto;margin:0 -16px 12px;padding:0 16px 4px;scrollbar-width:none}
   .categories::-webkit-scrollbar{display:none}
-  .controls{flex-wrap:wrap;gap:8px}
-  .search{flex-basis:100%}
-  select{flex:1;font-size:13px}
+  .controls{gap:8px}
+  .filter-toggle{display:block}
+  .filters{display:none;grid-template-columns:1fr 1fr;padding:12px}
+  .filters.open{display:grid}
+  .field input[type=search],.field input[type=date],select{font-size:16px}
+  .filter-foot{flex-direction:column;align-items:stretch}
+  .filter-foot .link-button{padding:9px}
   .card{padding:15px;gap:10px}
   .card-actions{min-width:58px}
   .title{font-size:15px;margin:6px 0}

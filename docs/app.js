@@ -2,6 +2,10 @@
 const $=s=>document.querySelector(s);
 const CATS=[['3','교육'],['1','금융'],['2','인력'],['4','창업'],['5','특허'],['6','판로'],['7','기타'],['8','기술'],['9','컨설팅'],['10','네트워킹']];
 const CAT=Object.fromEntries(CATS);
+// 상생누리 검색 화면과 같은 구분. '평가'는 사이트 검색 메뉴에는 없지만 목록 데이터에 있어 함께 둔다.
+const TARGETS=['협력사 지원','계열사 오픈','부분 오픈','전체 오픈'];
+const STATUSES=['신청예정','신청중','신청완료'];
+const PROGRESSES=['예정','모집중','진행중','평가','종료'];
 const TITLES={open:'진행 중 공고',new:'새로 발견한 공고',favorite:'즐겨찾기',all:'전체 검색'};
 const DEFAULT_SORT={open:'deadline',new:'found',favorite:'deadline',all:'registered'};
 const PAGE=20,DAY=86400000,STALE_HOURS=30;
@@ -80,6 +84,28 @@ function sourceRows(){
   }
   return archive?open.concat(archive):open;
 }
+function readFilters(){
+  const v=id=>$('#'+id).value.trim();
+  let from=v('from'),to=v('to');if(from&&to&&from>to)[from,to]=[to,from];
+  return {title:v('qTitle').toLowerCase(),org:v('qOrg').toLowerCase(),from,to,g:v('target'),s:v('status'),p:v('progress')};
+}
+// skip: 건수 계산 때 제외할 필터 키(g/s/p)
+function match(r,f,skip){
+  if(category&&r.c!==category)return false;
+  if(f.title&&!(r.t||'').toLowerCase().includes(f.title))return false;
+  if(f.org&&!(r.o||'').toLowerCase().includes(f.org))return false;
+  if(f.from&&!(r.se&&r.se>=f.from))return false;
+  if(f.to&&!(r.ss&&r.ss<=f.to))return false;
+  if(skip!=='g'&&f.g&&r.g!==f.g)return false;
+  if(skip!=='s'&&f.s&&r.s!==f.s)return false;
+  if(skip!=='p'&&f.p&&r.p!==f.p)return false;
+  return true;
+}
+function setupSelects(){
+  for(const [id,label,values] of [['target','전체 지원대상',TARGETS],['status','전체 신청단계',STATUSES],['progress','전체 진행단계',PROGRESSES]]){
+    const s=$('#'+id);s.append(new Option(label,''));for(const v of values)s.append(new Option(v,v));
+  }
+}
 function render(){
   if(!meta)return;
   const applying=open.filter(r=>r.s==='신청중');
@@ -99,9 +125,15 @@ function render(){
   $('#baselineInfo').textContent=`첫 기준 수집: ${when(meta.baselineAt)}. 기준 수집에 포함된 공고는 NEW로 표시하지 않습니다. 원본 공개 목록 ${fmt(meta.sourceTotal)}건.`;
   $('#runs').replaceChildren(...(meta.runs||[]).map(r=>el('li','',`${when(r.started)} · ${r.status==='success'?'성공':r.status==='error'?'실패':'진행 중'} · ${r.message}`)));
 
-  // 목록
-  const q=$('#search').value.trim().toLowerCase(),st=$('#status').value,sort=$('#sort').value;
-  let rows=sourceRows().filter(r=>(!category||r.c===category)&&(!st||r.s===st)&&(!q||(r.t+' '+r.o).toLowerCase().includes(q)));
+  // 목록 — 필터마다 '그 필터를 뺀 나머지 조건' 기준 건수를 옵션에 표시
+  const base=sourceRows(),sort=$('#sort').value,f=readFilters();
+  for(const [id,key] of [['target','g'],['status','s'],['progress','p']]){
+    const counts={};for(const r of base)if(match(r,f,key))counts[r[key]]=(counts[r[key]]||0)+1;
+    for(const o of $('#'+id).options)if(o.value)o.textContent=`${o.value} (${fmt(counts[o.value]||0)})`;
+  }
+  const active=[f.org,f.from||f.to,f.g,f.s,f.p].filter(Boolean).length;
+  $('#filterCount').textContent=active?` ${active}`:'';$('#filterToggle').classList.toggle('on',active>0);
+  let rows=base.filter(r=>match(r,f));
   const dl=r=>{const d=dday(r.ae);return d!==null&&d>=0?d:1e9;};
   const byReg=(a,b)=>(b.d||'').localeCompare(a.d||'')||b.i.localeCompare(a.i);
   if(sort==='deadline'){const m=new Map(rows.map(r=>[r.i,dl(r)]));rows.sort((a,b)=>m.get(a.i)-m.get(b.i)||byReg(a,b));}
@@ -126,7 +158,7 @@ function card(r){
   const a=el('a','title',r.t);a.href=url(r);a.target='_blank';a.rel='noopener noreferrer';
   a.addEventListener('click',()=>{if(!store.read[r.i]){store.read[r.i]=1;save();setTimeout(render,300);}});
   const det=el('div','details');
-  det.append(el('span','',`신청 ${r.as||'미표기'} ~ ${r.ae||'미표기'}`),el('span','',[r.r||'지역 미표기',r.g].filter(Boolean).join(' · ')));
+  det.append(el('span','',`신청 ${r.as||'미표기'} ~ ${r.ae||'미표기'}`),el('span','',`지원 ${r.ss||'미표기'} ~ ${r.se||'미표기'}`),el('span','',[r.r||'지역 미표기',r.g,r.p&&`진행 ${r.p}`].filter(Boolean).join(' · ')));
   if(r.f)det.append(el('span','',`발견 ${when(r.f)}`));
   body.append(top,a,det);
   const act=el('div','card-actions');
@@ -150,11 +182,13 @@ function selectView(v){
 $('#views').onclick=e=>{const b=e.target.closest('button');if(b)selectView(b.dataset.view);};
 $('#categories').onclick=e=>{const b=e.target.closest('button');if(!b)return;category=b.dataset.c;shown=PAGE;for(const x of $('#categories').children){x.classList.toggle('selected',x===b);x.setAttribute('aria-pressed',String(x===b));}render();};
 let typing;
-$('#search').addEventListener('input',()=>{clearTimeout(typing);typing=setTimeout(()=>{shown=PAGE;render();},200);});
-for(const id of ['status','sort'])$('#'+id).addEventListener('change',()=>{shown=PAGE;render();});
+for(const id of ['qTitle','qOrg'])$('#'+id).addEventListener('input',()=>{clearTimeout(typing);typing=setTimeout(()=>{shown=PAGE;render();},200);});
+for(const id of ['from','to','target','status','progress','sort'])$('#'+id).addEventListener('change',()=>{shown=PAGE;render();});
+$('#filterToggle').onclick=()=>{const open=$('#filters').classList.toggle('open');$('#filterToggle').setAttribute('aria-expanded',String(open));};
+$('#resetFilters').onclick=()=>{for(const id of ['qTitle','qOrg','from','to','target','status','progress'])$('#'+id).value='';shown=PAGE;render();};
 $('#more').onclick=()=>{shown+=PAGE;render();};
 $('#markAll').onclick=()=>{for(const r of open.filter(isNew))store.read[r.i]=1;save();render();toast('새로 발견한 공고를 모두 읽음으로 표시했습니다.');};
 // 폰에서 다시 열었을 때 5분이 지났으면 새 데이터 확인
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&Date.now()-loadedAt>5*60000)load();});
 
-setupCategories();load();
+setupCategories();setupSelects();load();
