@@ -1,0 +1,25 @@
+name: probe-access
+# 해외(GitHub) 서버에서 상생누리 공개 목록에 접속되는지 1회 확인하는 시험용 작업
+on:
+  push:
+    paths: ['.github/workflows/probe.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: robots.txt
+        run: |
+          curl -sS --max-time 30 -A 'SangsaengPersonalMonitor/2.0 (+personal-public-list-monitor; 12h; 2s-delay)' \
+            -o robots.txt -w 'HTTP %{http_code}\n' https://www.winwinnuri.or.kr/robots.txt
+          head -20 robots.txt
+      - name: list page 1 (5 rows)
+        run: |
+          sleep 2
+          curl -sS --max-time 30 -A 'SangsaengPersonalMonitor/2.0 (+personal-public-list-monitor; 12h; 2s-delay)' \
+            -H 'Accept: application/json,text/plain' -o page1.json -w 'HTTP %{http_code}\n' \
+            'https://www.winwinnuri.or.kr/pg/selectPgProgramAjax.do?pageNumber=1&pageSize=5&pageType=gth&orderType=3&needRstId=N&bizAreaSecd=0&supoTrgt=0&applyStep=0&progStep=0&bizArea=0&clsBizOpenYn='
+          node -e "const d=JSON.parse(require('fs').readFileSync('page1.json','utf8'));console.log('total:',d.total,'rows:',d.rows.length);d.rows.forEach(r=>console.log('-',r.prgId+':'+r.bizId,r.bizNm))"
