@@ -71,6 +71,12 @@ async function main(){
   try{await git(root,['push','--dry-run','--quiet','origin','HEAD'],{timeout:300000});log('GitHub 연결 확인됨');}
   catch(e){log('GitHub 연결 확인 실패:',short(e),'→ README의 PC 설정 2단계를 확인하세요.');}
 
+  // 시작할 때 PC의 DB와 웹 데이터를 맞춘다(바뀐 게 없으면 업로드하지 않음).
+  if(!once){
+    try{await pull(root);}catch(e){log('GitHub에서 최신 코드 받기 실패:',short(e));}
+    await upload('data: 수집기 시작 시 동기화');
+  }
+
   if(once){
     if(due())await cycle();else log('아직 수집 차례가 아닙니다. 다음 수집:',nextText());
     db.close();lock.close();return;
