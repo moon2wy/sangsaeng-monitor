@@ -25,7 +25,8 @@ export async function publish(repo,dataPath,message){
   try{await git(repo,['diff','--cached','--quiet','--',dataPath]);staged=false;}catch{}
   if(staged)await git(repo,[...ID,'commit','--quiet','-m',message,'--',dataPath]);
   if(!staged&&!(await aheadCount(repo)))return false;
-  await git(repo,[...ID,'pull','--rebase','--autostash','--quiet']);
+  try{await git(repo,[...ID,'pull','--rebase','--autostash','--quiet']);}
+  catch(e){try{await git(repo,['rebase','--abort']);}catch{}throw e;}   // 충돌 시 rebase 중간 상태로 남지 않게
   await git(repo,['push','--quiet','origin','HEAD'],{timeout:300000});
   return true;
 }

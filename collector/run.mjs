@@ -31,8 +31,12 @@ async function singleInstance(){
 
 let db,busy=false,pending=false;
 
+// 업로드는 수집 PC(Windows)에서만 한다. 다른 곳에서 시험 삼아 실행해도 GitHub 데이터를 덮어쓰지 않게.
+const canPublish=process.platform==='win32'||process.env.SANGSAENG_PUBLISH==='1';
+
 async function upload(message){
   writeSite(dataDir,buildSite(db));
+  if(!canPublish){log('업로드 생략 (수집 PC가 아님)');return;}
   try{
     if(await publish(root,'docs/data',message))log('GitHub 업로드 완료');
     pending=false;
@@ -57,6 +61,16 @@ async function cycle(){
   }finally{busy=false;}
 }
 
+// push --dry-run은 로그인을 확인하지만, 원격에 새 커밋이 있으면 '거부'로 끝난다. 그 경우는 로그인 문제가 아니다.
+async function checkLogin(){
+  try{await git(root,['push','--dry-run','--quiet','origin','HEAD'],{timeout:300000});log('GitHub 연결 확인됨');}
+  catch(e){
+    const msg=String(e?.stderr||e?.message||e);
+    if(/rejected|non-fast-forward|fetch first|the same ref/i.test(msg))log('GitHub 연결 확인됨 (원격에 새 변경이 있어 업로드할 때 합칩니다)');
+    else log('GitHub 연결 확인 실패:',short(e),'→ README의 PC 설정 4단계(GitHub 로그인)를 확인하세요.');
+  }
+}
+
 function due(){const last=meta(db,'lastAttempt');return !last||Date.now()-new Date(last).getTime()>=INTERVAL;}
 function nextText(){const last=meta(db,'lastAttempt');return last?new Date(new Date(last).getTime()+INTERVAL).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',hour12:false}):'지금';}
 
@@ -67,15 +81,12 @@ async function main(){
   process.on('SIGINT',shutdown);process.on('SIGTERM',shutdown);
   log('상생 모아 수집기 시작 · DB',dbPath);
 
-  // 시작할 때 GitHub 로그인을 확인한다(처음 한 번은 로그인 창이 뜰 수 있음).
-  try{await git(root,['push','--dry-run','--quiet','origin','HEAD'],{timeout:300000});log('GitHub 연결 확인됨');}
-  catch(e){log('GitHub 연결 확인 실패:',short(e),'→ README의 PC 설정 2단계를 확인하세요.');}
+  // 먼저 GitHub의 최신 코드를 받고, 그다음 업로드 권한(로그인)을 확인한다.
+  try{await pull(root);}catch(e){log('GitHub에서 최신 코드 받기 실패 (수집은 계속):',short(e));}
+  await checkLogin();
 
   // 시작할 때 PC의 DB와 웹 데이터를 맞춘다(바뀐 게 없으면 업로드하지 않음).
-  if(!once){
-    try{await pull(root);}catch(e){log('GitHub에서 최신 코드 받기 실패:',short(e));}
-    await upload('data: 수집기 시작 시 동기화');
-  }
+  if(!once)await upload('data: 수집기 시작 시 동기화');
 
   if(once){
     if(due())await cycle();else log('아직 수집 차례가 아닙니다. 다음 수집:',nextText());
