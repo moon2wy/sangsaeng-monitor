@@ -6,20 +6,20 @@
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'">
-<meta name="theme-color" content="#f4f6f9" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#12151d" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#eef1f5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#151a24" media="(prefers-color-scheme: dark)">
 <title>상생 모아</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232c3e9e'/%3E%3Ctext x='16' y='22.5' font-size='17' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='700'%3E%EB%AA%A8%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23ffe45c'/%3E%3Ctext x='16' y='23' font-size='18' text-anchor='middle' fill='%231c2333' font-family='serif' font-weight='700'%3E%EB%AA%A8%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="style.css?v=20261105e">
-<script src="app.js?v=20261105e" defer></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=Noto+Serif+KR:wght@600;700&display=swap">
+<link rel="stylesheet" href="style.css?v=20261105f">
+<script src="app.js?v=20261105f" defer></script>
 </head>
 <body>
 <header class="top">
   <div class="top-inner">
-    <a class="brand" href="./" aria-label="상생 모아 처음으로"><span class="seal" aria-hidden="true">모</span>상생 모아</a>
+    <a class="brand" href="./" aria-label="상생 모아 처음으로">상생 모아</a>
     <nav id="views" class="tabs" aria-label="공고 보기">
       <button data-view="open" class="selected" aria-current="page">진행 중<span class="n" id="openCount"></span></button>
       <button data-view="new">새로 발견<span class="n" id="newCount"></span></button>
@@ -30,52 +30,56 @@
   </div>
 </header>
 
-<section class="hero" aria-labelledby="today">
-  <div class="hero-head">
-    <h1 id="today">오늘</h1>
-    <p class="hero-sub">앞으로 2주 동안 마감되는 신청 중 공고 <b id="dueTotal">—</b>건<span class="hint"> · 날짜를 누르면 그날 마감만 봅니다</span></p>
-  </div>
-  <div id="strip" class="strip" role="group" aria-label="날짜별 마감 공고 수"></div>
-</section>
+<div class="page">
+  <aside class="rail">
+    <section id="cal" class="cal" aria-labelledby="calTitle">
+      <div class="cal-head">
+        <h2 id="calTitle"><span id="today">오늘</span></h2>
+        <p>이번 주와 다음 주 마감 <b id="dueTotal">—</b>건</p>
+      </div>
+      <div class="cal-week" aria-hidden="true"><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span><span>일</span></div>
+      <div id="strip" class="cal-grid" role="group" aria-label="날짜별 마감 공고 수. 날짜를 누르면 그날 마감만 봅니다"></div>
+      <p class="cal-legend"><i class="sw low"></i>마감 공고가 많을수록 진하게 <i class="sw today"></i>오늘</p>
+    </section>
 
-<div class="layout">
+    <div id="filters" class="filters" aria-label="상세 필터">
+      <label class="field"><span>기업명</span><input id="qOrg" type="search" placeholder="예: 한국전력공사" enterkeyhint="search"></label>
+      <div class="field"><span>지원기간</span>
+        <div class="period"><input id="from" type="date" aria-label="지원기간 시작일"><em aria-hidden="true">~</em><input id="to" type="date" aria-label="지원기간 종료일"></div>
+        <small>공고의 지원기간이 이 기간과 겹치면 보여줍니다</small>
+      </div>
+      <label class="field"><span>지원대상</span><select id="target"></select></label>
+      <label class="field"><span>신청단계</span><select id="status"></select></label>
+      <label class="field"><span>진행단계</span><select id="progress"></select></label>
+      <label class="field"><span>묶어 보기</span><select id="sort"><option value="deadline">마감일별</option><option value="registered">등록일별</option><option value="found">발견일별</option></select></label>
+      <button id="resetFilters" class="ghost">필터 초기화</button>
+    </div>
+  </aside>
 
   <main>
     <div class="controls">
       <label class="search"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="M13 13l4 4"/></svg><input id="qTitle" type="search" placeholder="프로그램명으로 찾기" aria-label="프로그램명" enterkeyhint="search"></label>
       <button id="filterToggle" class="filter-toggle" aria-expanded="false" aria-controls="filters">필터<span id="filterCount"></span></button>
     </div>
-    <aside id="filters" class="filters" aria-label="상세 필터">
-      <label class="field"><span>기업명</span><input id="qOrg" type="search" placeholder="예: 한국전력공사" enterkeyhint="search"></label>
-      <div class="field"><span>지원기간</span>
-      <div class="period"><input id="from" type="date" aria-label="지원기간 시작일"><em aria-hidden="true">~</em><input id="to" type="date" aria-label="지원기간 종료일"></div>
-      <small>공고의 지원기간이 이 기간과 겹치면 보여줍니다</small>
-      </div>
-      <label class="field"><span>지원대상</span><select id="target"></select></label>
-      <label class="field"><span>신청단계</span><select id="status"></select></label>
-      <label class="field"><span>진행단계</span><select id="progress"></select></label>
-      <label class="field"><span>정렬</span><select id="sort"><option value="deadline">마감 임박순</option><option value="registered">최근 등록순</option><option value="found">최근 발견순</option></select></label>
-      <button id="resetFilters" class="ghost">필터 초기화</button>
-    </aside>
     <div class="categories" id="categories" role="group" aria-label="지원분야"></div>
     <div class="list-head">
-      <h2 id="viewTitle">진행 중 공고</h2>
+      <h1 id="viewTitle">진행 중 공고</h1>
       <span id="resultCount" class="count"></span>
       <button id="dateChip" class="chip" hidden></button>
       <button id="markAll" class="ghost small" hidden>모두 읽음으로</button>
     </div>
-    <div id="cards" class="list" aria-live="polite"></div>
+    <div id="cards" class="agenda" aria-live="polite"></div>
     <div class="more"><button id="more" class="ghost" hidden>더 보기</button></div>
   </main>
 </div>
 
 <footer>
-  <p>NEW는 등록일이 아니라 수집기가 처음 발견한 때를 기준으로 붙습니다. 읽음과 즐겨찾기는 이 기기에만 저장됩니다.</p>
+  <p><mark class="hl-new">노란 형광펜</mark>은 새로 발견한 공고, <mark class="hl-due">분홍 형광펜</mark>은 3일 안에 마감되는 날입니다. NEW는 등록일이 아니라 수집기가 처음 발견한 때를 기준으로 붙습니다. 읽음과 즐겨찾기는 이 기기에만 저장됩니다.</p>
   <details><summary>수집 기록과 이용 안내</summary>
     <p id="baselineInfo"></p>
     <ol id="runs"></ol>
     <p>회사 PC의 수집기가 12시간마다 상생누리 공개 목록을 가져와 올립니다. PC가 꺼져 있으면 마지막으로 가져온 목록을 보여줍니다. 상세 내용과 첨부파일은 원문에서 확인하세요.</p>
-    <p>개인 열람용 페이지입니다. <a href="https://www.winwinnuri.or.kr/cm/accessTermsView.do" target="_blank" rel="noopener noreferrer">상생누리 이용약관</a> · <a href="https://www.winwinnuri.or.kr/pg/selectPgSearchList.do" target="_blank" rel="noopener noreferrer">상생누리 프로그램 검색</a></p>
+    <p>개인 열람용 페이지입니다. <a href="https://www.winwinnuri.or.kr/cm/accessTermsView.do" target="_blank" rel="noopener noreferrer">상생누리 이용약관</a>, <a href="https://www.winwinnuri.or.kr/pg/selectPgSearchList.do" target="_blank" rel="noopener noreferrer">상생누리 프로그램 검색</a></p>
   </details>
 </footer>
 <div id="toast" role="status" hidden></div>

@@ -6,9 +6,9 @@ const CAT=Object.fromEntries(CATS);
 const TARGETS=['협력사 지원','계열사 오픈','부분 오픈','전체 오픈'];
 const STATUSES=['신청예정','신청중','신청완료'];
 const PROGRESSES=['예정','모집중','진행중','평가','종료'];
-const TITLES={open:'진행 중 공고',new:'새로 발견한 공고',favorite:'즐겨찾기',all:'전체 검색'};
+const TITLES={open:'진행 중인 공고',new:'새로 발견한 공고',favorite:'즐겨찾기한 공고',all:'전체 공고'};
 const DEFAULT_SORT={open:'deadline',new:'found',favorite:'deadline',all:'registered'};
-const PAGE=20,DAY=86400000,STALE_HOURS=30,STRIP_DAYS=14,URGENT=3;
+const PAGE=30,DAY=86400000,STALE_HOURS=30,STRIP_DAYS=14,URGENT=3;
 const WD=['일','월','화','수','목','금','토'];
 
 let meta=null,open=[],archive=null,archiveLoading=null,view='open',category='',dueDate='',shown=PAGE,loadedAt=0;
@@ -121,24 +121,55 @@ function renderSync(){
   $('#baselineInfo').textContent=`${title}. 첫 기준 수집은 ${when(meta.baselineAt)}이고, 이때 있던 공고에는 NEW를 붙이지 않습니다. 상생누리 공개 목록 ${fmt(meta.sourceTotal)}건.`;
   $('#runs').replaceChildren(...(meta.runs||[]).map(r=>el('li','',`${when(r.started)} ${r.status==='success'?'성공':r.status==='error'?'실패':'진행 중'}: ${r.message}`)));
 }
+// 이번 주 월요일부터 2주 달력. 지난 날은 흐리게, 마감 건수가 많을수록 형광펜을 진하게.
 function renderStrip(applying){
   const today=kstToday(),counts={};
   for(const r of applying)if(isDate(r.ae))counts[r.ae]=(counts[r.ae]||0)+1;
-  const days=Array.from({length:STRIP_DAYS},(_,i)=>addDays(today,i));
-  const max=Math.max(1,...days.map(d=>counts[d]||0));
+  const wdToday=new Date(today+'T00:00:00Z').getUTCDay();
+  const monday=addDays(today,-((wdToday+6)%7));
+  const days=Array.from({length:STRIP_DAYS},(_,i)=>addDays(monday,i));
+  const future=days.filter(d=>d>=today);
+  const max=Math.max(1,...future.map(d=>counts[d]||0));
   const [,m,d]=today.split('-');
-  $('#today').textContent=`${+m}월 ${+d}일 ${WD[new Date(today+'T00:00:00Z').getUTCDay()]}요일`;
-  $('#dueTotal').textContent=fmt(days.reduce((a,x)=>a+(counts[x]||0),0));
-  $('#strip').replaceChildren(...days.map((day,i)=>{
-    const n=counts[day]||0,wd=new Date(day+'T00:00:00Z').getUTCDay();
-    const b=el('button','day'+(i<=URGENT&&n?' urgent':'')+(n?'':' zero')+(wd===0||wd===6?' weekend':'')+(i===0?' today':''));
+  $('#today').textContent=`${+m}월 ${+d}일 ${WD[wdToday]}요일`;
+  $('#dueTotal').textContent=fmt(future.reduce((a,x)=>a+(counts[x]||0),0));
+  $('#strip').replaceChildren(...days.map(day=>{
+    const past=day<today,n=past?0:(counts[day]||0),dd=dayNum(day)-dayNum(today);
+    const b=el('button','day'+(past?' past':'')+(n?'':' zero')+(day===today?' today':'')+(!past&&dd<=URGENT&&n?' urgent':''));
     b.dataset.date=day;b.setAttribute('aria-pressed',String(dueDate===day));
-    b.setAttribute('aria-label',`${+day.slice(5,7)}월 ${+day.slice(8)}일 마감 ${n}건`);
-    const bar=el('span','bar');bar.style.setProperty('--h',n?String(Math.max(.12,n/max)):'0');
-    const wrap=el('span','barwrap');wrap.append(bar);
-    b.append(el('span','cnt',n?String(n):'·'),wrap,el('span','date',String(+day.slice(8))),el('span','wd',i===0?'오늘':WD[wd]));
+    if(past){b.disabled=true;b.setAttribute('aria-label',`${+day.slice(5,7)}월 ${+day.slice(8)}일 (지난 날)`);}
+    else b.setAttribute('aria-label',`${+day.slice(5,7)}월 ${+day.slice(8)}일 마감 ${n}건`);
+    if(n)b.style.setProperty('--h',String(Math.max(.15,n/max)));
+    b.append(el('span','date',String(+day.slice(8))),el('span','cnt',n?`${n}건`:'0'));
     return b;
   }));
+}
+// 묶음 머리: 마감일별/등록일별/발견일별
+function groupKey(r,sort,today){
+  if(sort==='deadline'){
+    if(r.s==='신청중'&&isDate(r.ae)&&r.ae>=today)return r.ae;
+    if(r.s==='신청예정')return '~upcoming';
+    return '~closed';
+  }
+  if(sort==='found')return r.f?kstDateOf(r.f):'~base';
+  return isDate(r.d)?r.d:'~none';
+}
+function kstDateOf(iso){return new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(iso));}
+function groupHead(key,sort,count,today){
+  const h=el('div','ghead'),t=el('h2');let wd='',dd='';
+  if(key.startsWith('~')){
+    t.textContent={'~upcoming':'신청 시작 전','~closed':'마감되었거나 기간 미표기','~base':'기준 수집 때 있던 공고','~none':'등록일 미표기'}[key];
+  }else{
+    const diff=dayNum(key)-dayNum(today),w=WD[new Date(key+'T00:00:00Z').getUTCDay()];
+    const label=diff===0?'오늘':diff===1&&sort==='deadline'?'내일':diff===-1?'어제':`${+key.slice(5,7)}월 ${+key.slice(8)}일`;
+    const yr=key.slice(0,4)!==today.slice(0,4)?`${key.slice(0,4)}년 `:'';
+    if(sort==='deadline'&&diff<=URGENT){const m=el('mark','hl-due',label);t.append(m);h.classList.add('urgent');}else t.textContent=yr+label;
+    wd=(diff===0||diff===1||diff===-1)?`${+key.slice(5,7)}월 ${+key.slice(8)}일 ${w}요일`:`${w}요일`;
+    dd=sort==='deadline'?(diff===0?'오늘 마감':`D-${diff}`):sort==='found'?'발견':'등록';
+  }
+  h.append(t);if(wd)h.append(el('span','wd',wd));
+  h.append(el('span','dd',dd),el('span','gc',`${fmt(count)}건`));
+  return h;
 }
 function render(){
   if(!meta)return;
@@ -160,7 +191,7 @@ function render(){
   let rows=base.filter(r=>match(r,f));
   const dl=r=>{const d=dday(r.ae);return d!==null&&d>=0&&r.s!=='신청완료'?d:1e9;};
   const byReg=(a,b)=>(b.d||'').localeCompare(a.d||'')||b.i.localeCompare(a.i);
-  if(sort==='deadline'){const m=new Map(rows.map(r=>[r.i,dl(r)]));rows.sort((a,b)=>m.get(a.i)-m.get(b.i)||byReg(a,b));}
+  if(sort==='deadline'){const rank=r=>r.s==='신청중'&&dl(r)<1e9?dl(r):r.s==='신청예정'?1e8:1e9;const m=new Map(rows.map(r=>[r.i,rank(r)]));rows.sort((a,b)=>m.get(a.i)-m.get(b.i)||(m.get(a.i)===1e8?(a.as||'').localeCompare(b.as||''):0)||byReg(a,b));}
   else if(sort==='found')rows.sort((a,b)=>(b.f||'').localeCompare(a.f||'')||byReg(a,b));
   else rows.sort(byReg);
 
@@ -175,37 +206,43 @@ function render(){
     list.replaceChildren(view==='new'?empty(`최근 ${meta.newDays}일 동안 새로 발견한 공고가 없습니다`,'수집기가 새 공고를 찾으면 여기에 먼저 보입니다.')
       :view==='favorite'&&!favCount?empty('즐겨찾기한 공고가 없습니다','공고 오른쪽 별을 누르면 이 기기에 저장됩니다.')
       :empty('조건에 맞는 공고가 없습니다','필터를 줄이거나 다른 검색어를 넣어 보세요.'));
-  }else list.replaceChildren(...rows.slice(0,shown).map(card));
+  }else{
+    const today=kstToday(),counts=new Map();
+    for(const r of rows){const k=groupKey(r,sort,today);counts.set(k,(counts.get(k)||0)+1);}
+    const out=[];let cur=null,box=null;
+    for(const r of rows.slice(0,shown)){
+      const k=groupKey(r,sort,today);
+      if(k!==cur){cur=k;const g=el('section','group');box=el('div','items');g.append(groupHead(k,sort,counts.get(k),today),box);out.push(g);}
+      box.append(card(r,sort));
+    }
+    list.replaceChildren(...out);
+  }
   const more=$('#more');more.hidden=rows.length<=shown;more.textContent=`${fmt(Math.min(PAGE,rows.length-shown))}건 더 보기 (남은 ${fmt(rows.length-shown)}건)`;
 }
 function empty(title,body){const e=el('div','empty');e.append(el('b','',title),el('span','',body));return e;}
-function stub(r){
-  const d=dday(r.ae),s=el('div','stub');
-  if(r.s==='신청중'&&d!==null&&d>=0){
-    if(d<=URGENT)s.classList.add('urgent');
-    s.append(el('b','',d===0?'오늘':`D-${d}`),el('span','',`${short(r.ae)} 마감`));
-  }else if(r.s==='신청예정'){
-    s.classList.add('upcoming');s.append(el('b','','신청 전'),el('span','',`${short(r.as)} 시작`));
-  }else{
-    s.classList.add('closed');s.append(el('b','',r.s==='신청완료'?'마감':(r.s||'확인 필요')),el('span','',short(r.ae)));
-  }
-  return s;
+function badge(r,sort){
+  const d=dday(r.ae);
+  if(r.s==='신청중'&&d!==null&&d>=0)return sort==='deadline'?'':(d===0?'오늘 마감':`D-${d}`);
+  if(r.s==='신청예정')return sort==='deadline'?`${short(r.as)} 신청 시작`:'신청 전';
+  return sort==='deadline'?'':(r.s==='신청완료'?'마감':'');
 }
 function fact(k,v){const d=el('div');d.append(el('dt','',k),el('dd','',v));return d;}
-function card(r){
-  const read=isRead(r),fav=!!store.fav[r.i];
-  const row=el('article','row'+(read?' read':''));
-  const main=el('div','row-main'),top=el('div','row-top');
-  top.append(el('span','cat',CAT[r.c]||'기타'));
-  if(isNew(r))top.append(el('span','newtag','NEW'));
-  if(r.o)top.append(el('span','org',r.o));
-  const a=el('a','title',r.t);a.href=url(r);a.target='_blank';a.rel='noopener noreferrer';
+function card(r,sort){
+  const read=isRead(r),fav=!!store.fav[r.i],fresh=isNew(r);
+  const item=el('article','item'+(read?' read':''));
+  const main=el('div','item-main'),meta=el('p','meta');
+  meta.append(el('span','cat',CAT[r.c]||'기타'));
+  const b=badge(r,sort);if(b)meta.append(el('span','badge',b));
+  if(fresh)meta.append(el('span','newtag','NEW'));
+  if(r.o)meta.append(el('span','org',r.o));
+  const a=el('a','title');a.href=url(r);a.target='_blank';a.rel='noopener noreferrer';
+  a.append(el(fresh?'mark':'span',fresh?'hl-new':'',r.t));
   a.addEventListener('click',()=>{if(!store.read[r.i]){store.read[r.i]=1;save();setTimeout(render,300);}});
   const facts=el('dl','facts');
   facts.append(fact('신청',range(r.as,r.ae)),fact('지원',range(r.ss,r.se)),fact('지역',r.r||'미표기'),fact('대상',r.g||'미표기'),fact('진행',r.p||'미표기'));
-  if(r.f)facts.append(fact('발견',when(r.f)));
-  main.append(top,a,facts);
-  const act=el('div','row-actions');
+  if(r.f&&sort!=='found')facts.append(fact('발견',when(r.f)));
+  main.append(meta,a,facts);
+  const act=el('div','acts');
   const star=el('button','icon'+(fav?' on':''));star.append(svg(STAR));
   star.setAttribute('aria-label',fav?'즐겨찾기에서 빼기':'즐겨찾기에 넣기');star.setAttribute('aria-pressed',String(fav));star.title=star.getAttribute('aria-label');
   star.onclick=()=>{if(store.fav[r.i]){delete store.fav[r.i];toast('즐겨찾기에서 뺐습니다.');}else{store.fav[r.i]=r;toast('즐겨찾기에 넣었습니다.');}save();render();};
@@ -213,7 +250,7 @@ function card(r){
   rb.setAttribute('aria-label',read?'읽지 않음으로 바꾸기':'읽음으로 표시');rb.setAttribute('aria-pressed',String(read));rb.title=rb.getAttribute('aria-label');
   rb.onclick=()=>{if(store.read[r.i])delete store.read[r.i];else store.read[r.i]=1;save();render();};
   act.append(star,rb);
-  row.append(stub(r),main,act);return row;
+  item.append(main,act);return item;
 }
 
 // ── 이벤트
