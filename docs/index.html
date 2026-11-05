@@ -13,8 +13,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=Noto+Serif+KR:wght@600;700&display=swap">
-<link rel="stylesheet" href="style.css?v=20261105f">
-<script src="app.js?v=20261105f" defer></script>
+<link rel="stylesheet" href="style.css?v=20261105h">
+<script src="app.js?v=20261105h" defer></script>
 </head>
 <body>
 <header class="top">
@@ -22,9 +22,10 @@
     <a class="brand" href="./" aria-label="상생 모아 처음으로">상생 모아</a>
     <nav id="views" class="tabs" aria-label="공고 보기">
       <button data-view="open" class="selected" aria-current="page">진행 중<span class="n" id="openCount"></span></button>
+      <button data-view="interest">관심<span class="n" id="interestCount"></span></button>
       <button data-view="new">새로 발견<span class="n" id="newCount"></span></button>
-      <button data-view="favorite">즐겨찾기<span class="n" id="favoriteCount"></span></button>
-      <button data-view="all">전체 검색<span class="n" id="allCount"></span></button>
+      <button data-view="mine">내 공고<span class="n" id="mineCount"></span></button>
+      <button data-view="all">전체<span class="n" id="allCount"></span></button>
     </nav>
     <p id="sync" class="sync" role="status">불러오는 중</p>
   </div>
@@ -51,7 +52,9 @@
       <label class="field"><span>지원대상</span><select id="target"></select></label>
       <label class="field"><span>신청단계</span><select id="status"></select></label>
       <label class="field"><span>진행단계</span><select id="progress"></select></label>
-      <label class="field"><span>묶어 보기</span><select id="sort"><option value="deadline">마감일별</option><option value="registered">등록일별</option><option value="found">발견일별</option></select></label>
+      <label class="field"><span>지역</span><select id="region"></select><small>지역을 고르면 전국 공고도 함께 보여줍니다</small></label>
+      <label class="field"><span>묶어 보기</span><select id="sort"><option value="deadline">마감일별</option><option value="registered">등록일별</option><option value="found">발견일별</option><option value="track">검토 상태별</option></select></label>
+      <label class="check"><input id="showSkipped" type="checkbox"> 제외한 공고도 보기</label>
       <button id="resetFilters" class="ghost">필터 초기화</button>
     </div>
   </aside>
@@ -63,18 +66,36 @@
     </div>
     <div class="categories" id="categories" role="group" aria-label="지원분야"></div>
     <div class="list-head">
-      <h1 id="viewTitle">진행 중 공고</h1>
+      <h1 id="viewTitle">진행 중인 공고</h1>
       <span id="resultCount" class="count"></span>
       <button id="dateChip" class="chip" hidden></button>
-      <button id="markAll" class="ghost small" hidden>모두 읽음으로</button>
+      <div class="head-actions">
+        <button id="markAll" class="ghost small" hidden>모두 읽음으로</button>
+        <div class="export">
+          <button id="exportBtn" class="ghost small" aria-haspopup="true" aria-expanded="false" aria-controls="exportMenu">내보내기</button>
+          <div id="exportMenu" class="menu" hidden>
+            <p id="exportInfo"></p>
+            <button id="copyTable">표로 복사<small>한글·엑셀·메일에 붙여넣기</small></button>
+            <button id="downloadCsv">엑셀 파일로 받기<small>CSV, 메모·링크 포함</small></button>
+          </div>
+        </div>
+      </div>
     </div>
+    <section id="interestBar" class="interest" hidden aria-label="관심 설정">
+      <div class="interest-row"><div id="interestSummary" class="tags"></div><button id="interestEdit" class="ghost small" aria-expanded="false" aria-controls="interestForm">관심 설정 바꾸기</button></div>
+      <form id="interestForm" class="interest-form" hidden>
+        <label class="field"><span>키워드 (공고명에서 찾음)</span><input id="kwInput" type="text" placeholder="예: 전기, 안전, ESG"></label>
+        <label class="field"><span>기관 (기관명 일부만 써도 됨)</span><input id="orgInput" type="text" placeholder="예: 한국수력원자력, 남부발전"></label>
+        <div class="interest-foot"><small id="interestNote"></small><button type="button" id="interestReset" class="ghost small">기본값으로</button><button type="submit" class="primary small">저장</button></div>
+      </form>
+    </section>
     <div id="cards" class="agenda" aria-live="polite"></div>
     <div class="more"><button id="more" class="ghost" hidden>더 보기</button></div>
   </main>
 </div>
 
 <footer>
-  <p><mark class="hl-new">노란 형광펜</mark>은 새로 발견한 공고, <mark class="hl-due">분홍 형광펜</mark>은 3일 안에 마감되는 날입니다. NEW는 등록일이 아니라 수집기가 처음 발견한 때를 기준으로 붙습니다. 읽음과 즐겨찾기는 이 기기에만 저장됩니다.</p>
+  <p><mark class="hl-new">노란 형광펜</mark>은 새로 발견한 공고, <mark class="hl-due">분홍 형광펜</mark>은 3일 안에 마감되는 날입니다. NEW는 등록일이 아니라 수집기가 처음 발견한 때를 기준으로 붙습니다. 읽음, 즐겨찾기, 검토 상태와 메모, 관심 설정은 이 기기에만 저장됩니다.</p>
   <details><summary>수집 기록과 이용 안내</summary>
     <p id="baselineInfo"></p>
     <ol id="runs"></ol>
