@@ -8,9 +8,10 @@ const STATUSES=['신청예정','신청중','신청완료'];
 const PROGRESSES=['예정','모집중','진행중','평가','종료'];
 const TITLES={open:'진행 중 공고',new:'새로 발견한 공고',favorite:'즐겨찾기',all:'전체 검색'};
 const DEFAULT_SORT={open:'deadline',new:'found',favorite:'deadline',all:'registered'};
-const PAGE=20,DAY=86400000,STALE_HOURS=30;
+const PAGE=20,DAY=86400000,STALE_HOURS=30,STRIP_DAYS=14,URGENT=3;
+const WD=['일','월','화','수','목','금','토'];
 
-let meta=null,open=[],archive=null,archiveLoading=null,view='open',category='',shown=PAGE,loadedAt=0;
+let meta=null,open=[],archive=null,archiveLoading=null,view='open',category='',dueDate='',shown=PAGE,loadedAt=0;
 
 // ── 기기별 저장 (읽음·즐겨찾기). 저장소가 막혀 있어도 화면은 동작한다.
 const KEY='sangsaeng-moa:v1';
@@ -21,11 +22,19 @@ function save(){try{localStorage.setItem(KEY,JSON.stringify(store));}catch{toast
 // ── 유틸
 const fmt=n=>Number(n).toLocaleString('ko-KR');
 const kstToday=()=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
-function dday(v){if(!/^\d{4}-\d\d-\d\d$/.test(v||''))return null;return Math.round((new Date(v+'T00:00:00+09:00')-new Date(kstToday()+'T00:00:00+09:00'))/DAY);}
-function when(v){return v?new Date(v).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit'}):'아직 없음';}
+const isDate=v=>/^\d{4}-\d\d-\d\d$/.test(v||'');
+const dayNum=v=>Date.parse(v+'T00:00:00Z')/DAY;
+function dday(v){return isDate(v)?dayNum(v)-dayNum(kstToday()):null;}
+function addDays(v,n){return new Date(Date.parse(v+'T00:00:00Z')+n*DAY).toISOString().slice(0,10);}
+function short(v){if(!isDate(v))return'미표기';const [y,m,d]=v.split('-');return y===kstToday().slice(0,4)?`${+m}.${+d}`:`${y.slice(2)}.${+m}.${+d}`;}
+const range=(a,b)=>!a&&!b?'미표기':`${short(a)} – ${short(b)}`;
+function when(v){return v?new Date(v).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}):'아직 없음';}
 function ago(v){if(!v)return'';const m=Math.round((Date.now()-new Date(v))/60000);if(m<60)return`${Math.max(m,1)}분 전`;const h=Math.round(m/60);return h<48?`${h}시간 전`:`${Math.round(h/24)}일 전`;}
 function el(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!==undefined)e.textContent=text;return e;}
-function toast(msg){const t=$('#toast');t.textContent=msg;t.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>t.hidden=true,3500);}
+function svg(path,vb='0 0 24 24'){const s=document.createElementNS('http://www.w3.org/2000/svg','svg');s.setAttribute('viewBox',vb);s.setAttribute('aria-hidden','true');for(const d of path){const p=document.createElementNS('http://www.w3.org/2000/svg','path');p.setAttribute('d',d);s.append(p);}return s;}
+const STAR=['M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.8z'];
+const CHECK=['M4.5 12.5l4.5 4.5L19.5 6.5'];
+function toast(msg){const t=$('#toast');t.textContent=msg;t.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>t.hidden=true,3200);}
 const url=r=>{const [p,b]=r.i.split(':');return`https://www.winwinnuri.or.kr/pg/businessView.do?pageNumber=1&prgIdH=${encodeURIComponent(p)}&bizIdH=${encodeURIComponent(b)}&returnUrl=%2Fpg%2FselectPgSearchList.do`;};
 const isRecent=r=>!!r.f&&Date.now()-new Date(r.f)<(meta?.newDays||14)*DAY;
 const isNew=r=>isRecent(r)&&!store.read[r.i];
@@ -48,40 +57,38 @@ async function load(){
     save();
     if(view==='all')await ensureArchive();
     render();
-  }catch(e){
-    const s=$('#sync');s.className='sync error';
-    s.textContent='데이터를 불러오지 못했습니다. 인터넷 연결을 확인하고 새로고침해 주세요.';
-    if(!open.length)$('#cards').replaceChildren(el('div','empty','공고 데이터를 불러오지 못했습니다.'));
+  }catch{
+    const s=$('#sync');s.className='sync error';s.textContent='불러오기 실패';
+    if(!open.length)$('#cards').replaceChildren(empty('공고 목록을 불러오지 못했습니다','인터넷 연결을 확인한 뒤 새로고침하세요.'));
   }
 }
 function ensureArchive(){
   if(archive)return Promise.resolve();
   if(!archiveLoading){
     const years=Object.keys(meta.archive||{});
-    $('#resultCount').textContent='지난 공고를 불러오는 중…';
     archiveLoading=Promise.all(years.map(y=>getJSON(`archive-${y}.json`,meta.lastAttempt||'0'))).then(parts=>{
       archive=parts.flat();
       for(const r of archive)if(store.fav[r.i])store.fav[r.i]=r;
       save();
-    }).catch(e=>{archiveLoading=null;toast('지난 공고를 불러오지 못했습니다.');throw e;});
+    }).catch(e=>{archiveLoading=null;toast('지난 공고를 불러오지 못했습니다. 다시 눌러 주세요.');throw e;});
   }
   return archiveLoading;
 }
 
-// ── 화면
-function setupCategories(){
+// ── 필터
+function setup(){
   const box=$('#categories');
-  for(const [code,label] of [['','전체'],...CATS]){
+  for(const [code,label] of [['','전체 분야'],...CATS]){
     const b=el('button',code?'':'selected',label);b.dataset.c=code;b.setAttribute('aria-pressed',String(!code));box.append(b);
+  }
+  for(const [id,label,values] of [['target','전체',TARGETS],['status','전체',STATUSES],['progress','전체',PROGRESSES]]){
+    const s=$('#'+id);s.append(new Option(label,''));for(const v of values)s.append(new Option(v,v));
   }
 }
 function sourceRows(){
   if(view==='open')return open;
   if(view==='new')return open.filter(isRecent);
-  if(view==='favorite'){
-    const map=new Map(Object.values(store.fav).filter(Boolean).map(r=>[r.i,r]));
-    return [...map.values()];
-  }
+  if(view==='favorite')return [...new Map(Object.values(store.fav).filter(Boolean).map(r=>[r.i,r])).values()];
   return archive?open.concat(archive):open;
 }
 function readFilters(){
@@ -92,6 +99,7 @@ function readFilters(){
 // skip: 건수 계산 때 제외할 필터 키(g/s/p)
 function match(r,f,skip){
   if(category&&r.c!==category)return false;
+  if(dueDate&&r.ae!==dueDate)return false;
   if(f.title&&!(r.t||'').toLowerCase().includes(f.title))return false;
   if(f.org&&!(r.o||'').toLowerCase().includes(f.org))return false;
   if(f.from&&!(r.se&&r.se>=f.from))return false;
@@ -101,31 +109,46 @@ function match(r,f,skip){
   if(skip!=='p'&&f.p&&r.p!==f.p)return false;
   return true;
 }
-function setupSelects(){
-  for(const [id,label,values] of [['target','전체 지원대상',TARGETS],['status','전체 신청단계',STATUSES],['progress','전체 진행단계',PROGRESSES]]){
-    const s=$('#'+id);s.append(new Option(label,''));for(const v of values)s.append(new Option(v,v));
-  }
+
+// ── 화면
+function renderSync(){
+  const run=meta.runs?.[0],s=$('#sync');
+  const hours=meta.lastSuccess?(Date.now()-new Date(meta.lastSuccess))/3600000:Infinity;
+  let cls='sync',text=`${when(meta.lastSuccess)} 수집`,title=`마지막 수집 ${when(meta.lastSuccess)} (${ago(meta.lastSuccess)})`;
+  if(run?.status==='error'){cls+=' error';text='최근 수집 실패';title=`${when(run.started)} 수집 실패: ${run.message}. 마지막 성공 ${ago(meta.lastSuccess)}`;}
+  else if(hours>STALE_HOURS){cls+=' warn';text=`${ago(meta.lastSuccess)} 수집 · 수집기 확인 필요`;title='하루 넘게 새 수집이 없습니다. 회사 PC의 수집기가 켜져 있는지 확인하세요.';}
+  s.className=cls;s.textContent=text;s.title=title;
+  $('#baselineInfo').textContent=`${title}. 첫 기준 수집은 ${when(meta.baselineAt)}이고, 이때 있던 공고에는 NEW를 붙이지 않습니다. 상생누리 공개 목록 ${fmt(meta.sourceTotal)}건.`;
+  $('#runs').replaceChildren(...(meta.runs||[]).map(r=>el('li','',`${when(r.started)} ${r.status==='success'?'성공':r.status==='error'?'실패':'진행 중'}: ${r.message}`)));
+}
+function renderStrip(applying){
+  const today=kstToday(),counts={};
+  for(const r of applying)if(isDate(r.ae))counts[r.ae]=(counts[r.ae]||0)+1;
+  const days=Array.from({length:STRIP_DAYS},(_,i)=>addDays(today,i));
+  const max=Math.max(1,...days.map(d=>counts[d]||0));
+  const [,m,d]=today.split('-');
+  $('#today').textContent=`${+m}월 ${+d}일 ${WD[new Date(today+'T00:00:00Z').getUTCDay()]}요일`;
+  $('#dueTotal').textContent=fmt(days.reduce((a,x)=>a+(counts[x]||0),0));
+  $('#strip').replaceChildren(...days.map((day,i)=>{
+    const n=counts[day]||0,wd=new Date(day+'T00:00:00Z').getUTCDay();
+    const b=el('button','day'+(i<=URGENT&&n?' urgent':'')+(n?'':' zero')+(wd===0||wd===6?' weekend':'')+(i===0?' today':''));
+    b.dataset.date=day;b.setAttribute('aria-pressed',String(dueDate===day));
+    b.setAttribute('aria-label',`${+day.slice(5,7)}월 ${+day.slice(8)}일 마감 ${n}건`);
+    const bar=el('span','bar');bar.style.setProperty('--h',n?String(Math.max(.12,n/max)):'0');
+    const wrap=el('span','barwrap');wrap.append(bar);
+    b.append(el('span','cnt',n?String(n):'·'),wrap,el('span','date',String(+day.slice(8))),el('span','wd',i===0?'오늘':WD[wd]));
+    return b;
+  }));
 }
 function render(){
   if(!meta)return;
   const applying=open.filter(r=>r.s==='신청중');
   const newCount=open.filter(isNew).length,favCount=Object.keys(store.fav).length;
-  const due=applying.filter(r=>{const d=dday(r.ae);return d!==null&&d>=0&&d<=7;}).length;
   const total=meta.open+Object.values(meta.archive||{}).reduce((a,b)=>a+b,0);
-  for(const [id,v] of Object.entries({openStat:applying.length,openCount:open.length,newStat:newCount,newCount,dueStat:due,favoriteStat:favCount,favoriteCount:favCount,allCount:total}))$('#'+id).textContent=fmt(v);
+  for(const [id,v] of Object.entries({openCount:open.length,newCount,favoriteCount:favCount,allCount:total}))$('#'+id).textContent=v?fmt(v):'';
+  renderSync();renderStrip(applying);
 
-  // 수집 상태
-  const run=meta.runs?.[0],s=$('#sync');
-  const hours=meta.lastSuccess?(Date.now()-new Date(meta.lastSuccess))/3600000:Infinity;
-  let cls='sync',text=`마지막 수집 ${when(meta.lastSuccess)} · ${ago(meta.lastSuccess)}`;
-  if(run?.status==='error'){cls+=' error';text=`최근 수집 실패 (${when(run.started)}) · ${run.message} · 마지막 성공 ${ago(meta.lastSuccess)}`;}
-  else if(hours>STALE_HOURS){cls+=' warn';text+=' · 수집이 하루 넘게 멈춰 있어요. 회사 PC의 수집기가 켜져 있는지 확인하세요.';}
-  else if(meta.lastAdded)text+=` · 지난 수집에서 신규 ${fmt(meta.lastAdded)}건`;
-  s.className=cls;s.textContent=text;
-  $('#baselineInfo').textContent=`첫 기준 수집: ${when(meta.baselineAt)}. 기준 수집에 포함된 공고는 NEW로 표시하지 않습니다. 원본 공개 목록 ${fmt(meta.sourceTotal)}건.`;
-  $('#runs').replaceChildren(...(meta.runs||[]).map(r=>el('li','',`${when(r.started)} · ${r.status==='success'?'성공':r.status==='error'?'실패':'진행 중'} · ${r.message}`)));
-
-  // 목록 — 필터마다 '그 필터를 뺀 나머지 조건' 기준 건수를 옵션에 표시
+  // 목록 — 선택지마다 '그 필터를 뺀 나머지 조건' 기준 건수를 표시
   const base=sourceRows(),sort=$('#sort').value,f=readFilters();
   for(const [id,key] of [['target','g'],['status','s'],['progress','p']]){
     const counts={};for(const r of base)if(match(r,f,key))counts[r[key]]=(counts[r[key]]||0)+1;
@@ -133,8 +156,9 @@ function render(){
   }
   const active=[f.org,f.from||f.to,f.g,f.s,f.p].filter(Boolean).length;
   $('#filterCount').textContent=active?` ${active}`:'';$('#filterToggle').classList.toggle('on',active>0);
+
   let rows=base.filter(r=>match(r,f));
-  const dl=r=>{const d=dday(r.ae);return d!==null&&d>=0?d:1e9;};
+  const dl=r=>{const d=dday(r.ae);return d!==null&&d>=0&&r.s!=='신청완료'?d:1e9;};
   const byReg=(a,b)=>(b.d||'').localeCompare(a.d||'')||b.i.localeCompare(a.i);
   if(sort==='deadline'){const m=new Map(rows.map(r=>[r.i,dl(r)]));rows.sort((a,b)=>m.get(a.i)-m.get(b.i)||byReg(a,b));}
   else if(sort==='found')rows.sort((a,b)=>(b.f||'').localeCompare(a.f||'')||byReg(a,b));
@@ -142,34 +166,54 @@ function render(){
 
   $('#viewTitle').textContent=TITLES[view];
   $('#markAll').hidden=!(view==='new'&&newCount>0);
+  const chip=$('#dateChip');chip.hidden=!dueDate;
+  if(dueDate)chip.textContent=`${+dueDate.slice(5,7)}월 ${+dueDate.slice(8)}일 마감만 ✕`;
   const loadingArchive=view==='all'&&!archive;
-  $('#resultCount').textContent=loadingArchive?'지난 공고를 불러오는 중…':`${category?CAT[category]:'전체 분야'} · ${fmt(rows.length)}건`;
-  $('#cards').replaceChildren(...rows.slice(0,shown).map(card));
+  $('#resultCount').textContent=loadingArchive?'지난 공고까지 불러오는 중':`${fmt(rows.length)}건`;
+  const list=$('#cards');
   if(!rows.length&&!loadingArchive){
-    const msg=view==='new'?`최근 ${meta.newDays}일 동안 새로 발견한 공고가 없습니다.`:view==='favorite'?'☆를 눌러 관심 공고를 저장해 보세요.':'조건에 맞는 공고가 없습니다. 검색어나 필터를 바꿔 보세요.';
-    $('#cards').append(el('div','empty',msg));
-  }
-  const more=$('#more');more.hidden=rows.length<=shown;more.textContent=`더 보기 (${fmt(Math.min(PAGE,rows.length-shown))}건 / 남은 ${fmt(rows.length-shown)}건)`;
+    list.replaceChildren(view==='new'?empty(`최근 ${meta.newDays}일 동안 새로 발견한 공고가 없습니다`,'수집기가 새 공고를 찾으면 여기에 먼저 보입니다.')
+      :view==='favorite'&&!favCount?empty('즐겨찾기한 공고가 없습니다','공고 오른쪽 별을 누르면 이 기기에 저장됩니다.')
+      :empty('조건에 맞는 공고가 없습니다','필터를 줄이거나 다른 검색어를 넣어 보세요.'));
+  }else list.replaceChildren(...rows.slice(0,shown).map(card));
+  const more=$('#more');more.hidden=rows.length<=shown;more.textContent=`${fmt(Math.min(PAGE,rows.length-shown))}건 더 보기 (남은 ${fmt(rows.length-shown)}건)`;
 }
+function empty(title,body){const e=el('div','empty');e.append(el('b','',title),el('span','',body));return e;}
+function stub(r){
+  const d=dday(r.ae),s=el('div','stub');
+  if(r.s==='신청중'&&d!==null&&d>=0){
+    if(d<=URGENT)s.classList.add('urgent');
+    s.append(el('b','',d===0?'오늘':`D-${d}`),el('span','',`${short(r.ae)} 마감`));
+  }else if(r.s==='신청예정'){
+    s.classList.add('upcoming');s.append(el('b','','신청 전'),el('span','',`${short(r.as)} 시작`));
+  }else{
+    s.classList.add('closed');s.append(el('b','',r.s==='신청완료'?'마감':(r.s||'확인 필요')),el('span','',short(r.ae)));
+  }
+  return s;
+}
+function fact(k,v){const d=el('div');d.append(el('dt','',k),el('dd','',v));return d;}
 function card(r){
   const read=isRead(r),fav=!!store.fav[r.i];
-  const c=el('article','card'+(read?' read':'')),body=el('div','card-body'),top=el('div','meta-line');
-  top.append(el('span','pill',CAT[r.c]||'기타'));if(r.o)top.append(el('span','org',r.o));if(isNew(r))top.append(el('span','new','NEW'));
+  const row=el('article','row'+(read?' read':''));
+  const main=el('div','row-main'),top=el('div','row-top');
+  top.append(el('span','cat',CAT[r.c]||'기타'));
+  if(isNew(r))top.append(el('span','newtag','NEW'));
+  if(r.o)top.append(el('span','org',r.o));
   const a=el('a','title',r.t);a.href=url(r);a.target='_blank';a.rel='noopener noreferrer';
   a.addEventListener('click',()=>{if(!store.read[r.i]){store.read[r.i]=1;save();setTimeout(render,300);}});
-  const det=el('div','details');
-  det.append(el('span','',`신청 ${r.as||'미표기'} ~ ${r.ae||'미표기'}`),el('span','',`지원 ${r.ss||'미표기'} ~ ${r.se||'미표기'}`),el('span','',[r.r||'지역 미표기',r.g,r.p&&`진행 ${r.p}`].filter(Boolean).join(' · ')));
-  if(r.f)det.append(el('span','',`발견 ${when(r.f)}`));
-  body.append(top,a,det);
-  const act=el('div','card-actions');
-  const star=el('button','bookmark'+(fav?' on':''),fav?'★':'☆');star.setAttribute('aria-label',fav?'즐겨찾기 해제':'즐겨찾기 추가');star.setAttribute('aria-pressed',String(fav));
-  star.onclick=()=>{if(store.fav[r.i])delete store.fav[r.i];else store.fav[r.i]=r;save();render();};
-  const d=dday(r.ae);
-  const label=r.s==='신청중'&&d!==null&&d>=0?(d===0?'오늘 마감':`D-${d}`):r.s==='신청예정'?'신청예정':(r.s||'기간 확인');
-  const dl=el('span','deadline'+(r.s==='신청중'&&d!==null&&d>=0&&d<=7?' urgent':r.s==='신청중'||r.s==='신청예정'?'':' done'),label);
-  const rb=el('button','read-toggle',read?'읽음 ✓':'읽음으로');rb.setAttribute('aria-label',read?'읽지 않음으로 변경':'읽음으로 변경');
+  const facts=el('dl','facts');
+  facts.append(fact('신청',range(r.as,r.ae)),fact('지원',range(r.ss,r.se)),fact('지역',r.r||'미표기'),fact('대상',r.g||'미표기'),fact('진행',r.p||'미표기'));
+  if(r.f)facts.append(fact('발견',when(r.f)));
+  main.append(top,a,facts);
+  const act=el('div','row-actions');
+  const star=el('button','icon'+(fav?' on':''));star.append(svg(STAR));
+  star.setAttribute('aria-label',fav?'즐겨찾기에서 빼기':'즐겨찾기에 넣기');star.setAttribute('aria-pressed',String(fav));star.title=star.getAttribute('aria-label');
+  star.onclick=()=>{if(store.fav[r.i]){delete store.fav[r.i];toast('즐겨찾기에서 뺐습니다.');}else{store.fav[r.i]=r;toast('즐겨찾기에 넣었습니다.');}save();render();};
+  const rb=el('button','icon'+(read?' read-on':''));rb.append(svg(CHECK));
+  rb.setAttribute('aria-label',read?'읽지 않음으로 바꾸기':'읽음으로 표시');rb.setAttribute('aria-pressed',String(read));rb.title=rb.getAttribute('aria-label');
   rb.onclick=()=>{if(store.read[r.i])delete store.read[r.i];else store.read[r.i]=1;save();render();};
-  act.append(star,dl,rb);c.append(body,act);return c;
+  act.append(star,rb);
+  row.append(stub(r),main,act);return row;
 }
 
 // ── 이벤트
@@ -181,14 +225,16 @@ function selectView(v){
 }
 $('#views').onclick=e=>{const b=e.target.closest('button');if(b)selectView(b.dataset.view);};
 $('#categories').onclick=e=>{const b=e.target.closest('button');if(!b)return;category=b.dataset.c;shown=PAGE;for(const x of $('#categories').children){x.classList.toggle('selected',x===b);x.setAttribute('aria-pressed',String(x===b));}render();};
+$('#strip').onclick=e=>{const b=e.target.closest('.day');if(!b)return;dueDate=dueDate===b.dataset.date?'':b.dataset.date;shown=PAGE;if(dueDate&&view!=='open')selectView('open');else render();};
+$('#dateChip').onclick=()=>{dueDate='';shown=PAGE;render();};
 let typing;
 for(const id of ['qTitle','qOrg'])$('#'+id).addEventListener('input',()=>{clearTimeout(typing);typing=setTimeout(()=>{shown=PAGE;render();},200);});
 for(const id of ['from','to','target','status','progress','sort'])$('#'+id).addEventListener('change',()=>{shown=PAGE;render();});
-$('#filterToggle').onclick=()=>{const open=$('#filters').classList.toggle('open');$('#filterToggle').setAttribute('aria-expanded',String(open));};
-$('#resetFilters').onclick=()=>{for(const id of ['qTitle','qOrg','from','to','target','status','progress'])$('#'+id).value='';shown=PAGE;render();};
+$('#filterToggle').onclick=()=>{const o=$('#filters').classList.toggle('open');$('#filterToggle').setAttribute('aria-expanded',String(o));};
+$('#resetFilters').onclick=()=>{for(const id of ['qTitle','qOrg','from','to','target','status','progress'])$('#'+id).value='';dueDate='';shown=PAGE;render();};
 $('#more').onclick=()=>{shown+=PAGE;render();};
 $('#markAll').onclick=()=>{for(const r of open.filter(isNew))store.read[r.i]=1;save();render();toast('새로 발견한 공고를 모두 읽음으로 표시했습니다.');};
 // 폰에서 다시 열었을 때 5분이 지났으면 새 데이터 확인
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&Date.now()-loadedAt>5*60000)load();});
 
-setupCategories();setupSelects();load();
+setup();load();
