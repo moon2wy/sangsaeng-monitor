@@ -1,5 +1,5 @@
 name: probe-access
-# 해외(GitHub) 서버에서 상생누리 공개 목록에 접속되는지 1회 확인하는 시험용 작업
+# 해외(GitHub) 서버에서 상생누리 접속 가능 여부 확인 (시험용, 요청 3회)
 on:
   push:
     paths: ['.github/workflows/probe.yml']
@@ -11,15 +11,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: robots.txt
+      - name: runner location
+        run: curl -sS --max-time 10 https://ipinfo.io/json | grep -E '"(country|region|org)"' || true
+      - name: robots.txt with app UA
         run: |
-          curl -sS --max-time 30 -A 'SangsaengPersonalMonitor/2.0 (+personal-public-list-monitor; 12h; 2s-delay)' \
-            -o robots.txt -w 'HTTP %{http_code}\n' https://www.winwinnuri.or.kr/robots.txt
-          head -20 robots.txt
-      - name: list page 1 (5 rows)
+          curl -sS --max-time 30 -A 'SangsaengPersonalMonitor/2.0' -o a.html -w 'HTTP %{http_code}\n' https://www.winwinnuri.or.kr/robots.txt || true
+          sed -e 's/<[^>]*>//g' a.html | tr -s ' \t\n' ' ' | tail -c 600; echo
+      - name: robots.txt with browser UA
         run: |
-          sleep 2
-          curl -sS --max-time 30 -A 'SangsaengPersonalMonitor/2.0 (+personal-public-list-monitor; 12h; 2s-delay)' \
-            -H 'Accept: application/json,text/plain' -o page1.json -w 'HTTP %{http_code}\n' \
-            'https://www.winwinnuri.or.kr/pg/selectPgProgramAjax.do?pageNumber=1&pageSize=5&pageType=gth&orderType=3&needRstId=N&bizAreaSecd=0&supoTrgt=0&applyStep=0&progStep=0&bizArea=0&clsBizOpenYn='
-          node -e "const d=JSON.parse(require('fs').readFileSync('page1.json','utf8'));console.log('total:',d.total,'rows:',d.rows.length);d.rows.forEach(r=>console.log('-',r.prgId+':'+r.bizId,r.bizNm))"
+          sleep 3
+          curl -sS --max-time 30 -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36' \
+            -H 'Accept-Language: ko-KR,ko;q=0.9' -o b.html -w 'HTTP %{http_code}\n' https://www.winwinnuri.or.kr/robots.txt || true
+          sed -e 's/<[^>]*>//g' b.html | tr -s ' \t\n' ' ' | tail -c 600; echo
+      - name: main page headers
+        run: |
+          sleep 3
+          curl -sS --max-time 30 -I https://www.winwinnuri.or.kr/ || true
