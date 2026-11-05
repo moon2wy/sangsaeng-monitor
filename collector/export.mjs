@@ -32,7 +32,9 @@ export function buildSite(db,now=new Date()){
     const y=/^\d{4}/.test(r.d)?r.d.slice(0,4):'etc';
     (archive[y]||=[]).push(r);
   }
-  const runs=db.prepare('SELECT started,finished,status,message,count FROM runs ORDER BY id DESC LIMIT 5').all().map(x=>({...x}));
+  // 끝나지 않은 채 2시간 넘게 남은 기록은 중간에 멈춘 수집(창을 닫는 등)으로 표시한다.
+  const runs=db.prepare('SELECT started,finished,status,message,count FROM runs ORDER BY id DESC LIMIT 5').all()
+    .map(x=>x.status==='running'&&now-new Date(x.started)>2*3600000?{...x,status:'error',message:`중간에 멈춤 (${x.message})`}:{...x});
   const metaJson={
     schema:1,
     baselineAt:meta(db,'baselineAt')||null,
