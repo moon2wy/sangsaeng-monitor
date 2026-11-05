@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="theme-color" content="#186c51">
+<title>상생 모아</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23186c51'/%3E%3Ctext x='16' y='22' font-size='16' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='700'%3E%EB%AA%A8%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+<script src="app.js" defer></script>
+</head>
+<body>
+<aside>
+  <a class="brand" href="./" aria-label="상생 모아 홈"><span class="mark">모</span> 상생 모아<span class="dot">.</span></a>
+  <p class="tagline">기회를 놓치지 않는 습관</p>
+  <div class="nav-label">내 공고함</div>
+  <nav id="views" aria-label="공고함">
+    <button data-view="open" class="selected" aria-current="page">진행 중 <span id="openCount">—</span></button>
+    <button data-view="new">새로 발견 <span id="newCount">—</span></button>
+    <button data-view="favorite">즐겨찾기 <span id="favoriteCount">—</span></button>
+    <button data-view="all">전체 검색 <span id="allCount">—</span></button>
+  </nav>
+  <div class="side-bottom">
+    <p>상생누리 비공식 개인용 도구<br>원문 제공 · 상생누리</p>
+    <a href="https://www.winwinnuri.or.kr/pg/selectPgSearchList.do" target="_blank" rel="noopener noreferrer">상생누리 바로가기 ↗</a>
+  </div>
+</aside>
+<main>
+  <header>
+    <span class="eyebrow">WIN-WIN OPPORTUNITIES</span>
+    <h1>오늘의 기회, 한눈에.</h1>
+    <div id="sync" class="sync" role="status">공고를 불러오고 있습니다.</div>
+  </header>
+  <section class="stats" aria-label="현황">
+    <div><span>신청 중</span><strong id="openStat">—</strong><small>지금 신청 가능한 공고</small></div>
+    <div class="accent"><span>새로 발견</span><strong id="newStat">—</strong><small>최근 발견 · 아직 안 읽음</small></div>
+    <div><span>7일 이내 마감</span><strong id="dueStat">—</strong><small>신청 중 공고 기준</small></div>
+    <div><span>즐겨찾기</span><strong id="favoriteStat">—</strong><small>이 기기에 저장</small></div>
+  </section>
+  <section class="workspace">
+    <div class="section-heading"><h2 id="viewTitle">진행 중 공고</h2><button id="markAll" class="link-button" hidden>모두 읽음</button></div>
+    <div class="categories" id="categories" aria-label="지원분야"></div>
+    <div class="controls">
+      <label class="search"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="공고명, 기관명으로 검색" aria-label="공고명, 기관명으로 검색" enterkeyhint="search"></label>
+      <select id="status" aria-label="신청 상태"><option value="">모든 신청 상태</option><option>신청중</option><option>신청예정</option><option>신청완료</option></select>
+      <select id="sort" aria-label="정렬"><option value="deadline">마감 임박순</option><option value="registered">최근 등록순</option><option value="found">최근 발견순</option></select>
+    </div>
+    <div class="result-info"><span id="resultCount">불러오는 중</span></div>
+    <div id="cards" class="cards" aria-live="polite"></div>
+    <div class="more"><button id="more" hidden>더 보기</button></div>
+  </section>
+  <footer>
+    <p><b>NEW는 등록일이 아니라 수집기가 처음 발견한 시점 기준입니다.</b> 읽음·즐겨찾기는 이 기기(브라우저)에만 저장됩니다.</p>
+    <details><summary>수집 상태와 이용 안내</summary>
+      <p id="baselineInfo"></p>
+      <p>회사 PC의 수집기가 12시간 간격으로 상생누리 공개 목록을 수집해 올립니다. PC가 꺼져 있으면 마지막으로 수집한 결과를 보여줍니다. 목록 정보만 저장하며 상세 본문·첨부파일은 원문에서 확인하세요.</p>
+      <p>개인 열람용 페이지입니다. <a href="https://www.winwinnuri.or.kr/cm/accessTermsView.do" target="_blank" rel="noopener noreferrer">상생누리 이용약관 ↗</a></p>
+      <ol id="runs"></ol>
+    </details>
+  </footer>
+</main>
+<div id="toast" role="status" hidden></div>
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "name": "sangsaeng-monitor",
+  "version": "3.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24.0.0" },
+  "scripts": {
+    "start": "node collector/run.mjs",
+    "once": "node collector/run.mjs --once",
+    "test": "node --test test/*.test.mjs"
+  }
+}
