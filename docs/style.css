@@ -265,3 +265,9 @@ footer ol{padding-left:18px;margin:8px 0}
   .editor textarea{font-size:16px}
   .menu{width:220px}
 }
+
+.sortlabel{font-size:12.5px;color:var(--sub);background:var(--rule-soft);border-radius:5px;padding:1px 8px;align-self:center}
+@media (max-width:640px){
+  .list-head{row-gap:6px}
+  .list-head h1{order:1}.list-head .count{order:2}.head-actions{order:3}.sortlabel{order:4}#dateChip{order:5}
+}

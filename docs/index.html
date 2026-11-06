@@ -13,19 +13,19 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=Noto+Serif+KR:wght@600;700&display=swap">
-<link rel="stylesheet" href="style.css?v=20261105h">
-<script src="app.js?v=20261105h" defer></script>
+<link rel="stylesheet" href="style.css?v=20261106a">
+<script src="app.js?v=20261106a" defer></script>
 </head>
 <body>
 <header class="top">
   <div class="top-inner">
     <a class="brand" href="./" aria-label="상생 모아 처음으로">상생 모아</a>
     <nav id="views" class="tabs" aria-label="공고 보기">
-      <button data-view="open" class="selected" aria-current="page">진행 중<span class="n" id="openCount"></span></button>
+      <button data-view="all" class="selected" aria-current="page">전체<span class="n" id="allCount"></span></button>
+      <button data-view="open">진행 중<span class="n" id="openCount"></span></button>
       <button data-view="interest">관심<span class="n" id="interestCount"></span></button>
       <button data-view="new">새로 발견<span class="n" id="newCount"></span></button>
       <button data-view="mine">내 공고<span class="n" id="mineCount"></span></button>
-      <button data-view="all">전체<span class="n" id="allCount"></span></button>
     </nav>
     <p id="sync" class="sync" role="status">불러오는 중</p>
   </div>
@@ -53,7 +53,7 @@
       <label class="field"><span>신청단계</span><select id="status"></select></label>
       <label class="field"><span>진행단계</span><select id="progress"></select></label>
       <label class="field"><span>지역</span><select id="region"></select><small>지역을 고르면 전국 공고도 함께 보여줍니다</small></label>
-      <label class="field"><span>묶어 보기</span><select id="sort"><option value="deadline">마감일별</option><option value="registered">등록일별</option><option value="found">발견일별</option><option value="track">검토 상태별</option></select></label>
+      <label class="field"><span>묶어 보기</span><select id="sort"><option value="registered">등록순 (최신 등록부터)</option><option value="deadline">마감순 (마감 임박부터)</option><option value="found">발견순 (최근 발견부터)</option><option value="track">검토 상태순</option></select></label>
       <label class="check"><input id="showSkipped" type="checkbox"> 제외한 공고도 보기</label>
       <button id="resetFilters" class="ghost">필터 초기화</button>
     </div>
@@ -66,8 +66,8 @@
     </div>
     <div class="categories" id="categories" role="group" aria-label="지원분야"></div>
     <div class="list-head">
-      <h1 id="viewTitle">진행 중인 공고</h1>
-      <span id="resultCount" class="count"></span>
+      <h1 id="viewTitle">전체 공고</h1>
+      <span id="resultCount" class="count"></span><span id="sortLabel" class="sortlabel"></span>
       <button id="dateChip" class="chip" hidden></button>
       <div class="head-actions">
         <button id="markAll" class="ghost small" hidden>모두 읽음으로</button>

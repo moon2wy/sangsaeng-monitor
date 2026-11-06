@@ -9,11 +9,12 @@ const PROGRESSES=['예정','모집중','진행중','평가','종료'];
 const REGIONS=['전국','서울','부산','대구','인천','광주','대전','울산','세종','경기','강원','충북','충남','전북','전남','경북','경남','제주'];
 const TRACK={review:'검토 중',applied:'지원함',skip:'제외'};
 const TITLES={open:'진행 중인 공고',interest:'관심 공고',new:'새로 발견한 공고',mine:'내 공고',all:'전체 공고'};
+const SORT_LABEL={registered:'등록순 · 최신 등록부터',deadline:'마감순 · 마감 임박부터',found:'발견순 · 최근 발견부터',track:'검토 상태순'};
 const DEFAULT_SORT={open:'deadline',interest:'deadline',new:'found',mine:'track',all:'registered'};
 const PAGE=30,DAY=86400000,STALE_HOURS=30,STRIP_DAYS=14,URGENT=3;
 const WD=['일','월','화','수','목','금','토'];
 
-let meta=null,open=[],archive=null,archiveLoading=null,view='open',category='',dueDate='',shown=PAGE,loadedAt=0;
+let meta=null,open=[],archive=null,archiveLoading=null,view='all',category='',dueDate='',shown=PAGE,loadedAt=0;
 let defaults={keywords:[],orgs:[]},editing=null;
 
 // ── 기기별 저장 (읽음·즐겨찾기·검토 상태·관심 설정). 저장소가 막혀 있어도 화면은 동작한다.
@@ -245,6 +246,7 @@ function render(){
   const loadingArchive=view==='all'&&!archive;
   $('#resultCount').textContent=loadingArchive?'지난 공고까지 불러오는 중':`${fmt(rows.length)}건`;
   $('#exportBtn').disabled=!rows.length;
+  $('#sortLabel').textContent=SORT_LABEL[sort]||'';
   const list=$('#cards');
   if(!rows.length&&!loadingArchive){
     list.replaceChildren(view==='new'?empty(`최근 ${meta.newDays}일 동안 새로 발견한 공고가 없습니다`,'수집기가 새 공고를 찾으면 여기에 먼저 보입니다.')
