@@ -4,7 +4,8 @@
 import net from 'node:net';
 import {resolve,dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {openDB,meta} from './lib.mjs';
+import {spawn} from 'node:child_process';
+import {openDB,meta,setMeta} from './lib.mjs';
 import {collect,INTERVAL} from './collector.mjs';
 import {buildSite,writeSite} from './export.mjs';
 import {git,pull,publish} from './publish.mjs';
@@ -74,15 +75,42 @@ async function checkLogin(){
 function due(){const last=meta(db,'lastAttempt');return !last||Date.now()-new Date(last).getTime()>=INTERVAL;}
 function nextText(){const last=meta(db,'lastAttempt');return last?new Date(new Date(last).getTime()+INTERVAL).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',hour12:false}):'지금';}
 
+// 지난번 수집이 끝나지 않은 채 남아 있으면(수집 중에 창을 닫는 등) 정리하고 바로 다시 수집하게 한다.
+// 단일 실행 잠금을 잡은 뒤에만 부르므로, 이때 '진행 중'인 기록은 모두 멈춘 것이다.
+function recoverInterrupted(){
+  const stale=db.prepare("SELECT id,started,message FROM runs WHERE status='running'").all();
+  if(!stale.length&&!meta(db,'collectLock'))return;
+  const now=new Date().toISOString();
+  db.prepare("UPDATE runs SET status='error',finished=?,message='중간에 멈춤 ('||message||')' WHERE status='running'").run(now);
+  setMeta(db,'collectLock','');
+  const prev=db.prepare("SELECT started FROM runs WHERE message NOT LIKE '중간에 멈춤%' ORDER BY id DESC LIMIT 1").get();
+  setMeta(db,'lastAttempt',prev?.started||'');
+  if(stale.length)log('지난번 수집이 중간에 멈춰 있었습니다. 기록을 정리하고 바로 다시 수집합니다.');
+}
+
+// GitHub에서 받은 코드에 수집기 변경이 있으면, 새 코드로 다시 시작한다(창은 그대로).
+async function restartIfUpdated(lock){
+  const tree=()=>git(root,['rev-parse','HEAD:collector']).catch(()=>'');
+  const before=await tree();
+  try{await pull(root);}catch(e){log('GitHub에서 최신 코드 받기 실패 (수집은 계속):',short(e));return false;}
+  const after=await tree();
+  if(!before||before===after||process.env.SANGSAENG_RESTARTED)return false;
+  log('수집기 코드가 업데이트되어 새 버전으로 다시 시작합니다.');
+  await new Promise(r=>lock.close(r));
+  const child=spawn(process.execPath,[...process.execArgv,...process.argv.slice(1)],{stdio:'inherit',env:{...process.env,SANGSAENG_RESTARTED:'1'}});
+  child.on('exit',code=>process.exit(code??0));
+  return true;
+}
+
 async function main(){
   const lock=await singleInstance();
+  log('상생 모아 수집기 시작 · DB',dbPath);
+  // 먼저 GitHub의 최신 코드를 받는다. 수집기 코드가 바뀌었으면 새 코드로 다시 시작.
+  if(await restartIfUpdated(lock))return;
   db=openDB(dbPath);
   const shutdown=()=>{log('수집기를 종료합니다.');try{db.close();}catch{}lock.close();process.exit(0);};
   process.on('SIGINT',shutdown);process.on('SIGTERM',shutdown);
-  log('상생 모아 수집기 시작 · DB',dbPath);
-
-  // 먼저 GitHub의 최신 코드를 받고, 그다음 업로드 권한(로그인)을 확인한다.
-  try{await pull(root);}catch(e){log('GitHub에서 최신 코드 받기 실패 (수집은 계속):',short(e));}
+  recoverInterrupted();
   await checkLogin();
 
   // 시작할 때 PC의 DB와 웹 데이터를 맞춘다(바뀐 게 없으면 업로드하지 않음).
