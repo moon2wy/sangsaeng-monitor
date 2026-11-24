@@ -126,7 +126,7 @@ function regionHit(r,rg){
 function match(r,f,skip){
   if(category&&r.c!==category)return false;
   if(dueDate&&r.ae!==dueDate)return false;
-  if(f.title&&!(r.t||'').toLowerCase().includes(f.title))return false;
+  if(f.title&&!((r.t||'')+' '+(r.o||'')).toLowerCase().includes(f.title))return false;   // 검색창: 프로그램명+기관명
   if(f.org&&!(r.o||'').toLowerCase().includes(f.org))return false;
   if(f.from&&!(r.se&&r.se>=f.from))return false;
   if(f.to&&!(r.ss&&r.ss<=f.to))return false;
